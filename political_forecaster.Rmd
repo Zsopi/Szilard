@@ -849,6 +849,7 @@ data_w_fcast<-cbind(data_w_fcast,dl_predict=as.data.frame(h2o.predict(ml.dl_fina
 data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(gbm_predict,rf_predict))+geom_point()
 data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(gbm_predict,dl_predict))+geom_point()
 data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(trouble_dummy,rf_predict))+geom_point()
+data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(gbm_predict))+geom_density()
 
 ```
 
