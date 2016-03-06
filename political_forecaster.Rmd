@@ -457,7 +457,7 @@ alldata_merged<-alldata_merged%>%mutate(trouble_dummy=pol_viol_dummy+coup_dummy+
 ```
 
 ##Some exploratory data
-Lots of missing values everywhere, but 
+Lots of missing values everywhere, but I wanted to keep the full datafile
 
 **ln_gdp_pc**
 ```{r,echo=FALSE, warning= FALSE}
@@ -468,7 +468,7 @@ alldata_merged%>%ggplot(aes(x=ln_gdp_pc))+ geom_density()
 **polity2**
 ```{r,echo=FALSE, warning= FALSE}
 summary(alldata_merged$polity2)
-alldata_merged%>%ggplot(aes(x=polity2))+ geom_histogram()
+alldata_merged%>%ggplot(aes(x=polity2))+ geom_histogram(binwidth = 1)
 ```
 
 **gdp_pc_grth_lgd**
@@ -758,8 +758,10 @@ do.call(rbind, lapply(rf_gs@model_ids, function(m_id) {
 ```
 
 ##Estimating final models
+I use 5 folds cross validation in each case (GBM, RandomForest, DeepLearning)
 
-```{r, echo=FALSE, warning=FALSE}
+
+```{r, message=FALSE, warning=FALSE}
 
 #estimating final models
 set.seed(42)
@@ -802,13 +804,88 @@ ml.dl_final
 
 ```
 
+##I did not manage to make ensemble work (some isses with Rcurl), so I will just use the average probability forecast of the final models as my final probabilities. Probabilities are fine if we think of this as an input for decisionmakers etc.
 
+```{r}
 
+#generating dataset for predicitons
+data_w_fcast<-alldata_merged_new%>%
+        select(year,country,iso3c,trouble_dummy,polity2,ln_gdp_pc,gdp_pc_grth_lgd,resdummy,youth_r,young_pop_grth,total_pop_grth,polity_youthr,gdp_youthr)
 
-You can also embed plots, for example:
+#assuming same polity rating in 2015 and 2016 as in 2014
+cnames<-levels(as.factor(data_w_fcast$iso3c))
+for (cn in cnames){     data_w_fcast$polity2[(data_w_fcast$year==2015|data_w_fcast$year==2016)&data_w_fcast$iso3c==cn]<-data_w_fcast$polity2[data_w_fcast$year==2014&data_w_fcast$iso3c==cn]
+                        }
+#re-generating  interaction terms, h2o data
+data_w_fcast<-data_w_fcast%>%mutate(gdp_youthr=ln_gdp_pc*youth_r,polity_youthr=polity2*youth_r)
+h2o_fcast_data = as.h2o(data_w_fcast,destination_frame ='h2o_fcast_data' )
 
-```{r, echo=FALSE}
-plot(cars)
+#attaching forecasts to dataset
+data_w_fcast<-cbind(data_w_fcast,gbm_predict=as.data.frame(h2o.predict(ml.gbm_final,newdata = h2o_fcast_data))[,3])
+data_w_fcast<-cbind(data_w_fcast,rf_predict=as.data.frame(h2o.predict(ml.rf_final,newdata = h2o_fcast_data))[,3])
+data_w_fcast<-cbind(data_w_fcast,dl_predict=as.data.frame(h2o.predict(ml.dl_final,newdata = h2o_fcast_data))[,3])
+
+#some plot of the results - deep learning looks very different from the other two methods
+data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(gbm_predict,rf_predict))+geom_point()
+data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(gbm_predict,dl_predict))+geom_point()
+data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(trouble_dummy,rf_predict))+geom_point()
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+##Let's see how 2016 looks like in terms of political trouble predicitons. Worst countries are at the top. This is the final test of the prediciton, but can be evaluated only next year :) However, the results look pausible
+
+```{r}
+View(data_w_fcast%>%filter(year==2016)%>%mutate(avg_predict=(gbm_predict+rf_predict+dl_predict)/3)%>%arrange(desc(avg_predict)))
+
+pred_2016<-data_w_fcast%>%filter(year==2016)%>%mutate(avg_predict=(gbm_predict+rf_predict+dl_predict)/3)%>%arrange(desc(avg_predict))
+
+pred_2016
+
+pred_2016_nrw<-pred_2016%>%select(year,country,iso3c,gbm_predict,rf_predict,dl_predict,avg_predict)
+
+pred_2016_nrw
+
+```
+
+Another way of showing 2016 forecasts
+
+```{r comment=''}
+
+#cat(readLines(pred_2016_nrw), sep = '\n')
+
+```
+
+##Discussion
+
+###* Clearly, h2o makes forecasts even if some variables are missing - I presume it inputs averages, but I will have to check that
+
+###* Some of the forecasts with incomplete data look quite good, that is why I left these in (PSE is for Palestinian Authority for example, SOM is for Somalia)
+
+###* There is a risk that there was some covert overfitting, despite the fact that cross validation and early stopping was used: this is partly time series data, and countries are similar from one year to another (year variable was not included in the estimates of course)
+
+###* I was surprised by the fact how different Deep Learning results were from the other two methods (also a lot lower AUC). I could not figure out why that is the case - overfitting in the case of the other two methods could be an explanation, but this is just a guess
+
+###* With all the caveats, I like the results: countries with low "trouble" probabilities are usually fare good on other political stability rankings as well, and vice versa
+
+###* An interesting case is Singapore, where despite being rich, the final model is forecasting a larger probability of political trouble than in other rich countries - it seems that it learned the importance of the polity2 (democracy) variable. And this is unlikely to be a case of secretly overfitting, as there was no political trouble in Singapore in the past 50 years
+
+###*  
+
+
+And finally we shut down h2o:
+
+```{r}
+#bye! :)
+h2o.shutdown()
+```
+
+
+##Closing comments:
+
+### * The best thing in this work was that it gathered a dataset and put it in a usable format - this will make further estimations possible 
+
+### * This is a work in progress, and despite the overtime, I could not make it as nice as I would have liked
+
+### * But it was fun and I learned a lot :)
+
+### * Also, some of the results are interesting, as dicussed above, and I would like to investigate them further
