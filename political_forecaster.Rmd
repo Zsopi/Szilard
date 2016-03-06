@@ -10,13 +10,13 @@ https://github.com/Zsopi/Szilard
 
 ##(Machine) Learning about political trouble
 
-This code implements an estimation of “political trouble” in a given year in a given country my machine learning methods. One country-year is one record.
+###This code implements an estimation of “political trouble” in a given year in a given country my machine learning methods. One country-year is one record.
 
 ##Variable definitions and data sources
 
 ###Target variable
 
-“Political trouble” is a binary target variable, defined as 1 if either of the following happening in the given year: coup, attempted coup, self-coup, rebels ousting executive, interregnum periods (as defined by code -77 in the Polity IV database, see [**here**](http://www.systemicpeace.org/inscr/p4manualv2013.pdf)), civil war or violence, ethnic war or violence (otherwise the variable is 0). The civil violence data is described [**here**](http://www.systemicpeace.org/inscr/MEPVcodebook2014.pdf) and the data sources is [**here**](http://www.systemicpeace.org/inscr/MEPV2014.xls). The estimate uses the “CIVTOT” variable, but only with an intensity code of at least 3 (on a 0 to 10 scale). This is to exclude long running, often low intensity cases like ethnic strife in China or Thailand that is still ongoing. The definition of “political trouble” includes only domestic events and excludes cases of external wars. The source of political variables is the [**Center for Systemic Peace**](http://www.systemicpeace.org/inscrdata.html).
+###“Political trouble” is a binary target variable, defined as 1 if either of the following happening in the given year: coup, attempted coup, self-coup, rebels ousting executive, interregnum periods (as defined by code -77 in the Polity IV database, see [**here**](http://www.systemicpeace.org/inscr/p4manualv2013.pdf)), civil war or violence, ethnic war or violence (otherwise the variable is 0). The civil violence data is described [**here**](http://www.systemicpeace.org/inscr/MEPVcodebook2014.pdf) and the data sources is [**here**](http://www.systemicpeace.org/inscr/MEPV2014.xls). The estimate uses the “CIVTOT” variable, but only with an intensity code of at least 3 (on a 0 to 10 scale). This is to exclude long running, often low intensity cases like ethnic strife in China or Thailand that is still ongoing. The definition of “political trouble” includes only domestic events and excludes cases of external wars. The source of political variables is the [**Center for Systemic Peace**](http://www.systemicpeace.org/inscrdata.html).
 
 ###Features (or independent variables) are:  
 
@@ -30,7 +30,7 @@ This code implements an estimation of “political trouble” in a given year in
 
 * __total_pop_grth__: Growth rate of total population, % per annum. Source: same as above.
 
-* __polity2__: Political system variable. Denotes how authoritarian or democratic is in the country in the given year. Source: Polity IV:  Regime Authority Characteristics and Transitions Datasets from the [**Center for Systemic Peace**](http://www.systemicpeace.org/inscrdata.html).
+* __polity2__: Political system variable. Denotes how authoritarian or democratic is in the country in the given year. originally on a scale of -10 to +10, normalized to 1 to 21.  Source: Polity IV:  Regime Authority Characteristics and Transitions Datasets from the [**Center for Systemic Peace**](http://www.systemicpeace.org/inscrdata.html).
 
 * __resdummy__: Dummy variable for resource economies (“resdummy”). Takes values of 1 if resource rents  where resource rent minus “forest rent” is larger than 20% of GDP in 2013 or latest available, otherwise 0. Source: [**World Bank**](http://data.worldbank.org/indicator/NY.GDP.TOTL.RT.ZS).
 
@@ -69,6 +69,7 @@ install.packages("readxl")
 
 install.packages("h2o")
 
+install.packages("pander")
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
 
@@ -84,8 +85,8 @@ library("WDI")
 library("maddison")
 library("openxlsx")
 library("readxl")
-library(h2o)
-
+library("h2o")
+library("pander")
 
 #getting IMF World Economic Outlook data
 imf<-read.csv('https://www.imf.org/external/pubs/ft/weo/2015/02/weodata/WEOOct2015all.xls',
@@ -479,9 +480,9 @@ alldata_merged%>%ggplot(aes(x=gdp_pc_grth_lgd))+ geom_density()
 
 ##Who is “young”? Finding out by machine learning 
 
-Some political scientist make a connection between the ratio of young people in the total or adult population and political violence. The basic idea is that the higher the ratio of young people, the more political (and criminal) violence because youth has both the opportunity and the motive to be violent. (See for example: [**Urdal**](http://www.un.org/esa/population/publications/expertpapers/Urdal_Expert Paper.pdf) 2012, [**Yair**](http://cmp.sagepub.com/content/33/1/25) 2016). But their definition of “young” is usually arbitrary, something like ages between 15-24 or 15-29. In the following I will attempt to calibrate what age bracket is best to forecast political violence by using machine learning algorithms. I will run Random Forest, GBM and Deep Learning algorithms with default settings and will use AUC (“area under the curve”) to compare age cutoffs.
+###Some political scientist make a connection between the ratio of young people in the total or adult population and political violence. The basic idea is that the higher the ratio of young people, the more political (and criminal) violence because youth has both the opportunity and the motive to be violent. (See for example: [**Urdal**](http://www.un.org/esa/population/publications/expertpapers/Urdal_Expert Paper.pdf) 2012, [**Yair**](http://cmp.sagepub.com/content/33/1/25) 2016). But their definition of “young” is usually arbitrary, something like ages between 15-24 or 15-29. In the following I will attempt to calibrate what age bracket is best to forecast political violence by using machine learning algorithms. I will run Random Forest, GBM and Deep Learning algorithms with default settings and will use AUC (“area under the curve”) to compare age cutoffs.
 
-Because this chunk runs very slowly and would make compilation to take forever, it is not executed here. I probably should rewrite it to lapply form for faster execution, but that would take some time
+###Because this chunk runs very slowly and would make compilation to take forever, it is not executed here. I probably should rewrite it to lapply form for faster execution, but that would take some time
 
 ```{r, eval=FALSE}
 
@@ -599,7 +600,7 @@ View(results_youth_r_n%>%rowwise()%>%mutate(avgauc=mean(c(NN,GBM, RF)))%>%arrang
 
 ```
 
-###Results show that the 17-24 age bracket is the best definition of "young" as far as predicting political trouble is concerned, so I will use this definition, but the results are close to each other, so the age range does not make much difference. I will re-generate demographic variables in the following chunk
+###Results show that the 17-24 age bracket is the best definition of "young" as far as predicting political trouble is concerned, so I will use this definition, but the results are close to each other, so the exact age range does not make much difference. I will re-generate demographic variables in the following chunk
 
 
 ```{r,echo=FALSE, warning= FALSE}
@@ -806,6 +807,8 @@ ml.dl_final
 
 ##I did not manage to make ensemble work (some isses with Rcurl), so I will just use the average probability forecast of the final models as my final probabilities. Probabilities are fine if we think of this as an input for decisionmakers etc.
 
+##Deep learning looks very different from the other methods, see second chart
+
 ```{r}
 
 #generating dataset for predicitons
@@ -832,34 +835,36 @@ data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(troubl
 
 ```
 
-##Let's see how 2016 looks like in terms of political trouble predicitons. Worst countries are at the top. This is the final test of the prediciton, but can be evaluated only next year :) However, the results look pausible
+##Let's see how 2016 looks like in terms of political trouble predicitons. Worst countries are at the top. This is the final test of the prediciton, but can be evaluated only next year :) However, the results look broadly pausible
 
 ```{r}
-View(data_w_fcast%>%filter(year==2016)%>%mutate(avg_predict=(gbm_predict+rf_predict+dl_predict)/3)%>%arrange(desc(avg_predict)))
 
-pred_2016<-data_w_fcast%>%filter(year==2016)%>%mutate(avg_predict=(gbm_predict+rf_predict+dl_predict)/3)%>%arrange(desc(avg_predict))
+panderOptions('round', 4)
+panderOptions('keep.trailing.zeros', TRUE)
 
-pred_2016
+pred_2016<-data_w_fcast%>%filter(year==2016)%>%mutate(avg_predict=(gbm_predict+rf_predict+dl_predict)/3)%>%arrange(desc(avg_predict))%>%select(-year, -trouble_dummy, -polity_youthr, -gdp_youthr)
 
-pred_2016_nrw<-pred_2016%>%select(year,country,iso3c,gbm_predict,rf_predict,dl_predict,avg_predict)
+pred_2016_nrw<-pred_2016%>%select(country,iso3c,gbm_predict,rf_predict,dl_predict,avg_predict)
 
-pred_2016_nrw
+#pandoc.table(pred_2016_nrw, split.table= Inf)
+#pandoc.table(pred_2016, split.table= Inf)
 
+panderOptions('table.split.table', 300)
+pander(pred_2016)
 ```
 
-Another way of showing 2016 forecasts
 
-```{r comment=''}
-
-#cat(readLines(pred_2016_nrw), sep = '\n')
+###This table concentrates on just the forecasts, maybe easier to follow
+```{r}
+pander(pred_2016_nrw)
 
 ```
 
 ##Discussion
 
-###* Clearly, h2o makes forecasts even if some variables are missing - I presume it inputs averages, but I will have to check that
+###* Clearly, h2o makes forecasts even if some variables are missing - I presume it inputs averages, but I could not find it in the documentation yet
 
-###* Some of the forecasts with incomplete data look quite good, that is why I left these in (PSE is for Palestinian Authority for example, SOM is for Somalia)
+###* Some of the forecasts with incomplete data look quite good, that is why I left these in (PSE is for Palestinian Authority for example, SOM is for Somalia, both have only partial data, but political instability is plausible)
 
 ###* There is a risk that there was some covert overfitting, despite the fact that cross validation and early stopping was used: this is partly time series data, and countries are similar from one year to another (year variable was not included in the estimates of course)
 
@@ -869,8 +874,9 @@ Another way of showing 2016 forecasts
 
 ###* An interesting case is Singapore, where despite being rich, the final model is forecasting a larger probability of political trouble than in other rich countries - it seems that it learned the importance of the polity2 (democracy) variable. And this is unlikely to be a case of secretly overfitting, as there was no political trouble in Singapore in the past 50 years
 
-###*  
+###* On the other hand, the fact that most of the top countries in terms of forecasted political instability had a recent history of political instability point to possible overfitting
 
+###* Interestingly, the models predict an increase in the probability of political trouble for poor countries that increase their democratic scores(polity2)
 
 And finally we shut down h2o:
 
@@ -879,13 +885,12 @@ And finally we shut down h2o:
 h2o.shutdown()
 ```
 
-
 ##Closing comments:
 
-### * The best thing in this work was that it gathered a dataset and put it in a usable format - this will make further estimations possible 
+### * The best thing in this work was that it gathered a dataset and put it in a usable format - this will make further estimations and discovery possible 
 
-### * This is a work in progress, and despite the overtime, I could not make it as nice as I would have liked
+### * This is a work in progress, and despite the overtime, I could not make it as nice as I would have liked - sorry about the messy outcome...
 
-### * But it was fun and I learned a lot :)
+### * But it was fun and I learned a lot :) in the hard way :)
 
 ### * Also, some of the results are interesting, as dicussed above, and I would like to investigate them further
