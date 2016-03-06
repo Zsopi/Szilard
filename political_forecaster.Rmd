@@ -603,7 +603,7 @@ View(results_youth_r_n%>%rowwise()%>%mutate(avgauc=mean(c(NN,GBM, RF)))%>%arrang
 ###Results show that the 17-24 age bracket is the best definition of "young" as far as predicting political trouble is concerned, so I will use this definition, but the results are close to each other, so the exact age range does not make much difference. I will re-generate demographic variables in the following chunk
 
 
-```{r,echo=FALSE, warning= FALSE}
+```{r results='hide',echo=FALSE, warning= FALSE}
 
 i=17
 j=24
@@ -761,8 +761,7 @@ do.call(rbind, lapply(rf_gs@model_ids, function(m_id) {
 ##Estimating final models
 I use 5 folds cross validation in each case (GBM, RandomForest, DeepLearning)
 
-
-```{r, message=FALSE, warning=FALSE}
+```{r results='hide', message=FALSE, warning=FALSE}
 
 #estimating final models
 set.seed(42)
@@ -779,8 +778,13 @@ ml.gbm_final <- h2o.gbm(
         stopping_rounds = 5,
         stopping_tolerance = 1e-3,
         model_id = 'ml_gbm_final')
-ml.gbm_final
+```
 
+```{r}
+ml.gbm_final
+```
+
+```{r results='hide', message=FALSE, warning=FALSE}
 #random forest final
 ml.rf_final <- h2o.randomForest(
         x = setdiff(names(ml_data), 'trouble_dummy'),
@@ -791,8 +795,13 @@ ml.rf_final <- h2o.randomForest(
         stopping_rounds = 3, stopping_tolerance = 1e-3,
         nfolds=5,
         model_id = 'ml_rf_final')
-ml.rf_final
+```
 
+```{r}
+ml.rf_final
+```
+
+```{r results='hide', message=FALSE, warning=FALSE}
 #deeplearning final (no grid search, just to see if it improves ensemble)
 ml.dl_final <- h2o.deeplearning(
         x = setdiff(names(ml_data), 'trouble_dummy'),
@@ -801,15 +810,18 @@ ml.dl_final <- h2o.deeplearning(
         nfolds=5,hidden = c(200,200), epochs = 100,
         stopping_rounds = 3, stopping_tolerance = 1e-3,
         model_id = 'ml_dl_final')
-ml.dl_final
-
 ```
 
-##I did not manage to make ensemble work (some isses with Rcurl), so I will just use the average probability forecast of the final models as my final probabilities. Probabilities are fine if we think of this as an input for decisionmakers etc.
+Deep Learning (Neural network) has a significantly lower AUC than the other 2 models 
+```{r}
+ml.dl_final
+```
+
+##I did not manage to make ensemble function in h2o work (some isses with Rcurl), so I will just use the average probability forecast of the final models as my final probabilities. Probabilities are fine if we think of this as an input for decisionmakers etc., and it can be converted to a 0/1 forecast easily if needed
 
 ##Deep learning looks very different from the other methods, see second chart
 
-```{r}
+```{r results='hide'}
 
 #generating dataset for predicitons
 data_w_fcast<-alldata_merged_new%>%
@@ -828,6 +840,11 @@ data_w_fcast<-cbind(data_w_fcast,gbm_predict=as.data.frame(h2o.predict(ml.gbm_fi
 data_w_fcast<-cbind(data_w_fcast,rf_predict=as.data.frame(h2o.predict(ml.rf_final,newdata = h2o_fcast_data))[,3])
 data_w_fcast<-cbind(data_w_fcast,dl_predict=as.data.frame(h2o.predict(ml.dl_final,newdata = h2o_fcast_data))[,3])
 
+```
+
+##A couple of  plots to visualize  the results - deep learning looks very different from the other two methods
+
+```{r}
 #some plot of the results - deep learning looks very different from the other two methods
 data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(gbm_predict,rf_predict))+geom_point()
 data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(gbm_predict,dl_predict))+geom_point()
@@ -835,7 +852,7 @@ data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(troubl
 
 ```
 
-##Let's see how 2016 looks like in terms of political trouble predicitons. Worst countries are at the top. This is the final test of the prediciton, but can be evaluated only next year :) However, the results look broadly pausible
+##Let's see how 2016 looks like in terms of political trouble predicitons. Worst countries are at the top. This is the final test of the prediciton, but can be evaluated only next year :) However, the results look broadly pausible...
 
 ```{r}
 
@@ -851,11 +868,12 @@ pred_2016_nrw<-pred_2016%>%select(country,iso3c,gbm_predict,rf_predict,dl_predic
 
 panderOptions('table.split.table', 300)
 pander(pred_2016)
-```
 
+```
 
 ###This table concentrates on just the forecasts, maybe easier to follow
 ```{r}
+
 pander(pred_2016_nrw)
 
 ```
@@ -864,7 +882,7 @@ pander(pred_2016_nrw)
 
 ###* Clearly, h2o makes forecasts even if some variables are missing - I presume it inputs averages, but I could not find it in the documentation yet
 
-###* Some of the forecasts with incomplete data look quite good, that is why I left these in (PSE is for Palestinian Authority for example, SOM is for Somalia, both have only partial data, but political instability is plausible)
+###* Some of the forecasts with incomplete data look quite good, that is why I left these in (PSE is for Palestinian Authority for example, SOM is for Somalia, both have only partial data - and countrynames() function does not even know them - , but political instability is plausible)
 
 ###* There is a risk that there was some covert overfitting, despite the fact that cross validation and early stopping was used: this is partly time series data, and countries are similar from one year to another (year variable was not included in the estimates of course)
 
