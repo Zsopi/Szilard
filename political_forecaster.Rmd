@@ -664,7 +664,8 @@ h2o_ml_data = as.h2o(ml_data,destination_frame ='h2o_ml_data' )
 
 ```
 
-##Some exploratory data, demographics
+##Some further exploratory data, demographics and xy plots
+##Hints of non-linearities
 
 **youth_r**
 ```{r,echo=FALSE, warning= FALSE}
@@ -676,6 +677,24 @@ alldata_merged_new%>%ggplot(aes(x=youth_r))+ geom_density()
 ```{r,echo=FALSE, warning= FALSE}
 summary(alldata_merged_new$young_pop_grth)
 alldata_merged_new%>%ggplot(aes(x=young_pop_grth))+ geom_density()
+```
+
+**youth_r and political trouble**
+
+```{r,echo=FALSE, warning= FALSE}
+alldata_merged_new%>%ggplot(aes(x=youth_r, y=trouble_dummy))+ geom_point()+geom_smooth()
+```
+
+**ln_gdp_pc and political trouble**
+
+```{r,echo=FALSE, warning= FALSE}
+alldata_merged_new%>%ggplot(aes(x=ln_gdp_pc, y=trouble_dummy))+ geom_point()+geom_smooth()
+```
+
+**polity (democracy) and political trouble**
+
+```{r,echo=FALSE, warning= FALSE}
+alldata_merged_new%>%ggplot(aes(x=polity2, y=trouble_dummy))+ geom_point()+geom_smooth()
 ```
 
 ##Grid search
@@ -812,12 +831,12 @@ ml.dl_final <- h2o.deeplearning(
         model_id = 'ml_dl_final')
 ```
 
-Deep Learning (Neural network) has a significantly lower AUC than the other 2 models 
+Deep Learning (Neural network) has a significantly lower AUC than the other 2 models (all interpreted on the cross- validation set)
 ```{r}
 ml.dl_final
 ```
 
-##I did not manage to make ensemble function in h2o work (some isses with Rcurl), so I will just use the average probability forecast of the final models as my final probabilities. Probabilities are fine if we think of this as an input for decisionmakers etc., and it can be converted to a 0/1 forecast easily if needed
+##I did not manage to make the ensemble function in h2o work (some isses with Rcurl), so I will just use the average probability forecast of the final models as my final probabilities. Probabilities are fine if we think of this as an input for decisionmakers etc., and it can be converted to a 0/1 forecast easily if needed
 
 ##Deep learning looks very different from the other methods, see second chart
 
@@ -853,7 +872,7 @@ data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(gbm_pr
 
 ```
 
-##Let's see how 2016 looks like in terms of political trouble predicitons. Worst countries are at the top. This is the final test of the prediciton, but can be evaluated only next year :) However, the results look broadly pausible...
+##Let's see how 2016 looks like in terms of political trouble predicitons. Worst countries are at the top, based on avg_predict (last column), which is the average of the three prediction probabilities (GBM, RF, DL). This is the final test of the model, but can be evaluated only next year :) However, the results look broadly pausible...
 
 ```{r}
 
@@ -881,21 +900,27 @@ pander(pred_2016_nrw)
 
 ##Discussion
 
+###* The prediciton task here is not easy, as countries can have high political risk for years without "trouble" actually happening. We ar trying to forecast relatively rare events and weak, probabilistic causal links
+
 ###* Clearly, h2o makes forecasts even if some variables are missing - I presume it inputs averages, but I could not find it in the documentation yet
 
 ###* Some of the forecasts with incomplete data look quite good, that is why I left these in (PSE is for Palestinian Authority for example, SOM is for Somalia, both have only partial data - and countrynames() function does not even know them - , but political instability is plausible)
 
-###* There is a risk that there was some covert overfitting, despite the fact that cross validation and early stopping was used: this is partly time series data, and countries are similar from one year to another (year variable was not included in the estimates of course)
+###* There is a risk that there was some covert overfitting, despite the fact that cross validation and early stopping was used: this is partly time series data, and countries tend to be similar from one year to another (year variable was not included in the estimates of course)
 
-###* I was surprised by the fact how different Deep Learning results were from the other two methods (also a lot lower AUC). I could not figure out why that is the case - overfitting in the case of the other two methods could be an explanation, but this is just a guess
+###* I was surprised by the fact how different Deep Learning results were from the other two methods (also a lot lower AUC). I could not figure out why that is the case - overfitting in the case of the other two methods could be an explanation, but this is just a guess and I will need to investigate further
 
 ###* With all the caveats, I like the results: countries with low "trouble" probabilities are usually fare good on other political stability rankings as well, and vice versa
 
-###* An interesting case is Singapore, where despite being rich, the final model is forecasting a larger probability of political trouble than in other rich countries - it seems that it learned the importance of the polity2 (democracy) variable. And this is unlikely to be a case of secretly overfitting, as there was no political trouble in Singapore in the past 50 years
+###* An interesting case is Singapore, where despite being rich, the final model is forecasting a larger probability of political trouble than in other rich countries - it seems that it learned the importance of the polity2 (democracy) variable. And this is unlikely to be a case of secretly overfitting, as there was no political trouble in Singapore in the past 50 years (and very little in similar rich countries)
 
 ###* On the other hand, the fact that most of the top countries in terms of forecasted political instability had a recent history of political instability point to possible overfitting
 
-###* Interestingly, the models predict an increase in the probability of political trouble for poor countries that increase their democratic scores(polity2)
+###* Also, in some cases you can observe a jump in the predicted probability once a "trouble" event occured, at least in the case of RF and GBM - again a sign of possible overfitting
+
+###* Looking at the ROC curve in h2o, training metric is too high for GBM, DL and RF look more reasonable
+
+###* I presume that h2o randomly scambles data to create the cross-validation bins. In this case it would be better to take cases sequentially, then the estimation would take different countries than the cross validation, but I only know how to implement that manually.
 
 And finally we shut down h2o:
 
@@ -912,4 +937,4 @@ h2o.shutdown()
 
 ### * But it was fun and I learned a lot :) in the hard way :)
 
-### * Also, some of the results are interesting, as dicussed above, and I would like to investigate them further
+### * Also, some of the results are interesting, as dicussed above, and I would like to investigate them further, especially the possible case of overfitting
