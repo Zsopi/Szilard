@@ -647,6 +647,9 @@ alldata_merged_new<-alldata_merged_new%>%mutate(polity2=polity2+11)
 #adding interaction terms
 alldata_merged_new<-alldata_merged_new%>%mutate(gdp_youthr=ln_gdp_pc*youth_r,polity_youthr=polity2*youth_r)
 
+#saving generated datafile
+
+
 #generating machine learning data
 
 alldata_merged_new<-as.data.frame(alldata_merged_new)
@@ -848,8 +851,13 @@ data_w_fcast<-alldata_merged_new%>%
 
 #assuming same polity rating in 2015 and 2016 as in 2014
 cnames<-levels(as.factor(data_w_fcast$iso3c))
+
 for (cn in cnames){     data_w_fcast$polity2[(data_w_fcast$year==2015|data_w_fcast$year==2016)&data_w_fcast$iso3c==cn]<-data_w_fcast$polity2[data_w_fcast$year==2014&data_w_fcast$iso3c==cn]
                         }
+
+#adding missing country names
+data_w_fcast$country <- countrycode(data_w_fcast$iso3c, "iso3c", "country.name")
+
 #re-generating  interaction terms, h2o data
 data_w_fcast<-data_w_fcast%>%mutate(gdp_youthr=ln_gdp_pc*youth_r,polity_youthr=polity2*youth_r)
 h2o_fcast_data = as.h2o(data_w_fcast,destination_frame ='h2o_fcast_data' )
@@ -904,7 +912,7 @@ pander(pred_2016_nrw)
 
 ###* Clearly, h2o makes forecasts even if some variables are missing - I presume it inputs averages, but I could not find it in the documentation yet
 
-###* Some of the forecasts with incomplete data look quite good, that is why I left these in (PSE is for Palestinian Authority for example, SOM is for Somalia, both have only partial data - and countrynames() function does not even know them - , but political instability is plausible)
+###* Some of the forecasts with incomplete data look quite good, that is why I left these in (PSE is for Palestinian Authority for example, SOM is for Somalia, both have only partial data, but political instability is plausible)
 
 ###* There is a risk that there was some covert overfitting, despite the fact that cross validation and early stopping was used: this is partly time series data, and countries tend to be similar from one year to another (year variable was not included in the estimates of course)
 
