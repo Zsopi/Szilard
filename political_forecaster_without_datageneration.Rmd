@@ -1,0 +1,396 @@
+---
+title: "political_forecaster_without_datageneration"
+author: "Zsopi"
+date: "7 March 2016"
+output: html_document
+---
+###In this version I import the dataframe saved in the longer version, so it does not need to rebuild it each time.
+
+##(Machine) Learning about political trouble
+
+###This code implements an estimation of “political trouble” in a given year in a given country my machine learning methods. One country-year is one record.
+
+##Variable definitions and data sources
+
+###Target variable
+
+###“Political trouble” is a binary target variable, defined as 1 if either of the following happening in the given year: coup, attempted coup, self-coup, rebels ousting executive, interregnum periods (as defined by code -77 in the Polity IV database, see [**here**](http://www.systemicpeace.org/inscr/p4manualv2013.pdf)), civil war or violence, ethnic war or violence (otherwise the variable is 0). The civil violence data is described [**here**](http://www.systemicpeace.org/inscr/MEPVcodebook2014.pdf) and the data sources is [**here**](http://www.systemicpeace.org/inscr/MEPV2014.xls). The estimate uses the “CIVTOT” variable, but only with an intensity code of at least 3 (on a 0 to 10 scale). This is to exclude long running, often low intensity cases like ethnic strife in China or Thailand that is still ongoing. The definition of “political trouble” includes only domestic events and excludes cases of external wars. The source of political variables is the [**Center for Systemic Peace**](http://www.systemicpeace.org/inscrdata.html).
+
+###Features (or independent variables) are:  
+
+* __ln_gdp_pc__: The natural log of) GDP per capita at purchasing power in 2011 USA dollars. Source: [**IMF**](https://www.imf.org/external/pubs/ft/weo/2015/02/weodata/index.aspx) World Economic Outlook Database or the [**Maddison Project**](http://www.ggdc.net/maddison/maddison-project/home.htm).
+
+* __gdp_pc_grth_lgd__:Lagged GDP growth rate 5 years up to the year prior to the year examined, % annualized (this is to exclude reverse causation). Source: own calculations from above sources.
+
+* __youth_r__: Ratio of “young” population in the adult population. Source: own calculation based on [**UN demographic data**](http://esa.un.org/unpd/wpp/Download/Standard/ASCII/). For definition of “young” see below – this was the result of a kind of a grid search, final result is 17-24 years old.
+
+* __young_pop_grth__: Growth rate of young population, % per annum. Source: same as above.
+
+* __total_pop_grth__: Growth rate of total population, % per annum. Source: same as above.
+
+* __polity2__: Political system variable. Denotes how authoritarian or democratic is in the country in the given year. originally on a scale of -10 to +10, normalized to 1 to 21.  Source: Polity IV:  Regime Authority Characteristics and Transitions Datasets from the [**Center for Systemic Peace**](http://www.systemicpeace.org/inscrdata.html).
+
+* __resdummy__: Dummy variable for resource economies (“resdummy”). Takes values of 1 if resource rents  where resource rent minus “forest rent” is larger than 20% of GDP in 2013 or latest available, otherwise 0. Source: [**World Bank**](http://data.worldbank.org/indicator/NY.GDP.TOTL.RT.ZS).
+
+* __polity_youthr__: Youth ratio and polity2 interaction terms:  the product of the two variables above.
+
+* __gdp_youthr__: Youth ratio and GDP per capita interaction terms:  the product of the two variables above.
+
+
+In the following I collect the necessary variables and construct a unified database, unifying country codes and fixing some bugs in the in-built R functions (like the missing data for Turkey in the Maddsion package). This is a boring part and the code is not shown here (but executed).
+
+The following packages need to be installed (not included in the code as it could mess up execution)
+
+install.packages ("readr")
+
+install.packages ("dplyr")
+
+install.packages ("ggplot2")
+
+install.packages ("xlsx")
+
+install.packages("tidyr")
+
+install.packages("countrycode")
+
+install.packages("data.table")
+
+install.packages("pwt8")
+
+install.packages("WDI")
+
+install.packages("maddison")
+
+install.packages("openxlsx")
+
+install.packages("readxl")
+
+install.packages("h2o")
+
+install.packages("pander")
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+library("readr")
+library("dplyr")
+library("ggplot2")
+library("xlsx")
+library("tidyr")
+library("countrycode")
+library("data.table")
+library("pwt8")
+library("WDI")
+library("maddison")
+library("openxlsx")
+library("readxl")
+library("h2o")
+library("pander")
+```
+
+###Loading saved dataframe
+```{r,echo=FALSE, warning= FALSE}
+load("alldata_saved.Rda")
+```
+
+
+```{r,echo=FALSE, warning= FALSE}
+#generating machine learning data
+h2o.init()
+
+alldata_merged_new<-as.data.frame(alldata_merged_new)
+
+alldata_merged_new<-alldata_merged_new%>%filter(year<=2020&year>=1950)
+ml_data<-alldata_merged_new%>%
+  select(trouble_dummy,polity2,ln_gdp_pc,gdp_pc_grth_lgd,resdummy,youth_r,young_pop_grth,total_pop_grth,
+         polity_youthr,gdp_youthr)
+
+
+ml_data$trouble_dummy<-as.factor(ml_data$trouble_dummy)
+ml_data$resdummy<-as.factor(ml_data$resdummy)
+
+h2o_ml_data = as.h2o(ml_data,destination_frame ='h2o_ml_data' )
+
+```
+
+
+##Some further exploratory data, demographics and xy plots
+##Hints of non-linearities
+
+**youth_r**
+```{r,echo=FALSE, warning= FALSE}
+summary(alldata_merged_new$youth_r)
+alldata_merged_new%>%ggplot(aes(x=youth_r))+ geom_density()
+```
+
+**young_pop_grth**
+```{r,echo=FALSE, warning= FALSE}
+summary(alldata_merged_new$young_pop_grth)
+alldata_merged_new%>%ggplot(aes(x=young_pop_grth))+ geom_density()
+```
+
+**youth_r and political trouble**  
+
+```{r,echo=FALSE, warning= FALSE}
+alldata_merged_new%>%ggplot(aes(x=youth_r, y=trouble_dummy))+ geom_point()+geom_smooth()
+```
+
+**ln_gdp_pc and political trouble**  
+
+```{r,echo=FALSE, warning= FALSE}
+alldata_merged_new%>%ggplot(aes(x=ln_gdp_pc, y=trouble_dummy))+ geom_point()+geom_smooth()
+```
+
+**polity (democracy) and political trouble**  
+
+```{r,echo=FALSE, warning= FALSE}
+alldata_merged_new%>%ggplot(aes(x=polity2, y=trouble_dummy))+ geom_point()+geom_smooth()
+```
+
+##Grid search
+In the following I will show the code for grid searc, but for brevity I will only execute the final models
+
+```{r, eval=FALSE}
+
+#gbm grid-search
+system.time({
+        gbm_gs <- h2o.grid("gbm",
+                           x = setdiff(names(ml_data), 'trouble_dummy'),
+                           y = 'trouble_dummy', 
+                        training_frame = h2o_ml_data,
+                        nfolds=5,
+                        hyper_params = list(ntrees = 500,
+                                            max_depth = c(5,10,20,50),
+                                            learn_rate = c(0.01,0.1,0.001),
+                                            nbins = 200),
+                        stopping_rounds = 5, stopping_tolerance = 1e-3)
+})
+
+gbm_gs
+
+do.call(rbind, lapply(gbm_gs@model_ids, function(m_id) {
+        mm <- h2o.getModel(m_id)
+        hyper_params <- mm@allparameters
+        data.frame(m_id = m_id, 
+                   auc = h2o.auc(mm, train=FALSE, xval = TRUE),
+                   max_depth = hyper_params$max_depth,
+                   learn_rate = hyper_params$learn_rate )
+})) %>% arrange(desc(auc)) 
+
+#second round, finetuning max_depth
+system.time({
+        gbm_gs <- h2o.grid("gbm",
+                           x = setdiff(names(ml_data), 'trouble_dummy'),
+                           y = 'trouble_dummy', 
+                           training_frame = h2o_ml_data,
+                           nfolds=5,
+                           hyper_params = list(ntrees = 500,
+                                               max_depth = c(20,30,40,50),
+                                               learn_rate = 0.01),
+                           stopping_rounds = 5, stopping_tolerance = 1e-3)
+})
+
+gbm_gs
+
+do.call(rbind, lapply(gbm_gs@model_ids, function(m_id) {
+        mm <- h2o.getModel(m_id)
+        hyper_params <- mm@allparameters
+        data.frame(m_id = m_id, 
+                   auc = h2o.auc(mm, train=FALSE, xval = TRUE),
+                   max_depth = hyper_params$max_depth,
+                   learn_rate = hyper_params$learn_rate )
+})) %>% arrange(desc(auc)) 
+
+#random forest grid search
+system.time({
+        rf_gs <- h2o.grid("randomForest",
+                           x = setdiff(names(ml_data), 'trouble_dummy'),
+                           y = 'trouble_dummy', 
+                           training_frame = h2o_ml_data,
+                           nfolds=5,
+                           hyper_params = list(ntrees = c(20,50,500),
+                                               max_depth = c(20,30,40,50)),
+                          stopping_rounds = 5,
+                          stopping_tolerance = 1e-3)
+})
+
+rf_gs
+
+do.call(rbind, lapply(rf_gs@model_ids, function(m_id) {
+        mm <- h2o.getModel(m_id)
+        hyper_params <- mm@allparameters
+        data.frame(m_id = m_id, 
+                   auc = h2o.auc(mm, train=FALSE, xval = TRUE),
+                   max_depth = hyper_params$max_depth,
+                   ntrees = hyper_params$ntrees )
+})) %>% arrange(desc(auc)) 
+
+```
+
+##Estimating final models
+I use 5 folds cross validation in each case (GBM, RandomForest, DeepLearning)
+
+```{r results='hide', message=FALSE, warning=FALSE}
+
+#estimating final models
+set.seed(42)
+
+#gbm_final
+ml.gbm_final <- h2o.gbm(
+        x = setdiff(names(ml_data), 'trouble_dummy'),
+        y = 'trouble_dummy',
+        training_frame = 'h2o_ml_data',
+        nfolds=5,
+        ntrees = 500,
+        max_depth = 20,
+        learn_rate = 0.01,
+        stopping_rounds = 5,
+        stopping_tolerance = 1e-3,
+        model_id = 'ml_gbm_final')
+```
+
+```{r}
+ml.gbm_final
+```
+
+```{r results='hide', message=FALSE, warning=FALSE}
+#random forest final
+ml.rf_final <- h2o.randomForest(
+        x = setdiff(names(ml_data), 'trouble_dummy'),
+        y = 'trouble_dummy',
+        training_frame = 'h2o_ml_data',
+        max_depth = 20,
+        ntrees = 150,
+        stopping_rounds = 3, stopping_tolerance = 1e-3,
+        nfolds=5,
+        model_id = 'ml_rf_final')
+```
+
+```{r}
+ml.rf_final
+```
+
+```{r results='hide', message=FALSE, warning=FALSE}
+#deeplearning final (no grid search, just to see if it improves ensemble)
+ml.dl_final <- h2o.deeplearning(
+        x = setdiff(names(ml_data), 'trouble_dummy'),
+        y = 'trouble_dummy',
+        training_frame = 'h2o_ml_data',
+        nfolds=5,hidden = c(200,200), epochs = 100,
+        stopping_rounds = 3, stopping_tolerance = 1e-3,
+        model_id = 'ml_dl_final')
+```
+
+Deep Learning (Neural network) has a significantly lower AUC than the other 2 models (all interpreted on the cross- validation set)
+```{r}
+ml.dl_final
+```
+
+##I did not manage to make the ensemble function in h2o work (some isses with Rcurl), so I will just use the average probability forecast of the final models as my final probabilities. Probabilities are fine if we think of this as an input for decisionmakers etc., and it can be converted to a 0/1 forecast easily if needed
+
+##Deep learning looks very different from the other methods, see second chart
+
+```{r results='hide'}
+
+#generating dataset for predicitons
+data_w_fcast<-alldata_merged_new%>%
+        select(year,country,iso3c,trouble_dummy,polity2,ln_gdp_pc,gdp_pc_grth_lgd,resdummy,youth_r,young_pop_grth,total_pop_grth,polity_youthr,gdp_youthr)
+
+#assuming same polity rating in 2015 and 2016 as in 2014
+cnames<-levels(as.factor(data_w_fcast$iso3c))
+
+for (cn in cnames){     data_w_fcast$polity2[(data_w_fcast$year==2015|data_w_fcast$year==2016)&data_w_fcast$iso3c==cn]<-data_w_fcast$polity2[data_w_fcast$year==2014&data_w_fcast$iso3c==cn]
+                        }
+
+#adding missing country names
+data_w_fcast$country <- countrycode(data_w_fcast$iso3c, "iso3c", "country.name")
+
+#re-generating  interaction terms, h2o data
+data_w_fcast<-data_w_fcast%>%mutate(gdp_youthr=ln_gdp_pc*youth_r,polity_youthr=polity2*youth_r)
+h2o_fcast_data = as.h2o(data_w_fcast,destination_frame ='h2o_fcast_data' )
+
+#attaching forecasts to dataset
+data_w_fcast<-cbind(data_w_fcast,gbm_predict=as.data.frame(h2o.predict(ml.gbm_final,newdata = h2o_fcast_data))[,3])
+data_w_fcast<-cbind(data_w_fcast,rf_predict=as.data.frame(h2o.predict(ml.rf_final,newdata = h2o_fcast_data))[,3])
+data_w_fcast<-cbind(data_w_fcast,dl_predict=as.data.frame(h2o.predict(ml.dl_final,newdata = h2o_fcast_data))[,3])
+
+```
+
+##A couple of  plots to visualize  the results - deep learning looks very different from the other two methods
+
+```{r}
+#some plot of the results - deep learning looks very different from the other two methods
+data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(gbm_predict,rf_predict))+geom_point()
+data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(gbm_predict,dl_predict))+geom_point()
+data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(trouble_dummy,rf_predict))+geom_point()
+data_w_fcast[complete.cases(as.data.frame(h2o_fcast_data)),]%>%ggplot(aes(gbm_predict))+geom_density()
+
+```
+
+##Let's see how 2016 looks like in terms of political trouble predicitons. Worst countries are at the top, based on avg_predict (last column), which is the average of the three prediction probabilities (GBM, RF, DL). This is the final test of the model, but can be evaluated only next year :) However, the results look broadly pausible...
+
+```{r}
+
+panderOptions('round', 4)
+panderOptions('keep.trailing.zeros', TRUE)
+
+pred_2016<-data_w_fcast%>%filter(year==2016)%>%mutate(avg_predict=(gbm_predict+rf_predict+dl_predict)/3)%>%arrange(desc(avg_predict))%>%select(-year, -trouble_dummy, -polity_youthr, -gdp_youthr)
+
+pred_2016_nrw<-pred_2016%>%select(country,iso3c,gbm_predict,rf_predict,dl_predict,avg_predict)
+
+#pandoc.table(pred_2016_nrw, split.table= Inf)
+#pandoc.table(pred_2016, split.table= Inf)
+
+panderOptions('table.split.table', 300)
+pander(pred_2016)
+
+```
+
+###This table concentrates on just the forecasts, maybe easier to follow
+```{r}
+
+pander(pred_2016_nrw)
+
+```
+
+##Discussion
+
+###* The prediciton task here is not easy, as countries can have high political risk for years without "trouble" actually happening. We are trying to forecast relatively rare events and weak, probabilistic causal links
+
+###* Clearly, h2o makes forecasts even if some variables are missing - I presume it inputs averages, but I could not find it in the documentation yet
+
+###* Some of the forecasts with incomplete data look quite good, that is why I left these in (PSE is for Palestinian Authority for example, SOM is for Somalia, both have only partial data, but political instability is plausible)
+
+###* There is a risk that there was some covert overfitting, despite the fact that cross validation and early stopping was used: this is partly time series data, and countries tend to be similar from one year to another (year variable was not included in the estimates of course)
+
+###* I was surprised by the fact how different Deep Learning results were from the other two methods (also a lot lower AUC). I could not figure out why that is the case - overfitting in the case of the other two methods could be an explanation, but this is just a guess and I will need to investigate further
+
+###* With all the caveats, I like the results: countries with low "trouble" probabilities are usually fare good on other political stability rankings as well, and vice versa
+
+###* An interesting case is Singapore, where despite being rich, the final model is forecasting a larger probability of political trouble than in other rich countries - it seems that it learned the importance of the polity2 (democracy) variable. And this is unlikely to be a case of secretly overfitting, as there was no political trouble in Singapore in the past 50 years (and very little in similar rich countries)
+
+###* On the other hand, the fact that most of the top countries in terms of forecasted political instability had a recent history of political instability point to possible overfitting
+
+###* Also, in some cases you can observe a jump in the predicted probability once a "trouble" event occured, at least in the case of RF and GBM - again a sign of possible overfitting
+
+###* Looking at the ROC curve in h2o, training metric is suspiciously high for GBM, DL and RF look more reasonable
+
+###* I presume that h2o randomly scambles data to create the cross-validation bins. In this case it would be better to take cases sequentially, then the estimation would take different countries than the cross validation, but I only know how to implement that manually.
+
+And finally we shut down h2o:
+
+```{r}
+#bye! :)
+h2o.shutdown()
+```
+
+##Closing comments:
+
+###* I spent too much time with data munging and too little with modeling - as we learned at class :) 
+
+### * The most valuable part of this work probably was that it gathered a dataset and put it in a usable format - this will make further estimations and discovery possible 
+
+### * This is a work in progress, and despite the overtime, I could not make it as nice as I would have liked - sorry about the messy outcome...
+
+### * But it was fun and I learned a lot :) in the hard way :)
+
+### * Also, some of the results are interesting, as dicussed above, and I would like to investigate them further, especially the possible case of overfitting
