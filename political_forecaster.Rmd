@@ -679,19 +679,19 @@ summary(alldata_merged_new$young_pop_grth)
 alldata_merged_new%>%ggplot(aes(x=young_pop_grth))+ geom_density()
 ```
 
-**youth_r and political trouble**
+**youth_r and political trouble**  
 
 ```{r,echo=FALSE, warning= FALSE}
 alldata_merged_new%>%ggplot(aes(x=youth_r, y=trouble_dummy))+ geom_point()+geom_smooth()
 ```
 
-**ln_gdp_pc and political trouble**
+**ln_gdp_pc and political trouble**  
 
 ```{r,echo=FALSE, warning= FALSE}
 alldata_merged_new%>%ggplot(aes(x=ln_gdp_pc, y=trouble_dummy))+ geom_point()+geom_smooth()
 ```
 
-**polity (democracy) and political trouble**
+**polity (democracy) and political trouble**  
 
 ```{r,echo=FALSE, warning= FALSE}
 alldata_merged_new%>%ggplot(aes(x=polity2, y=trouble_dummy))+ geom_point()+geom_smooth()
@@ -900,7 +900,7 @@ pander(pred_2016_nrw)
 
 ##Discussion
 
-###* The prediciton task here is not easy, as countries can have high political risk for years without "trouble" actually happening. We ar trying to forecast relatively rare events and weak, probabilistic causal links
+###* The prediciton task here is not easy, as countries can have high political risk for years without "trouble" actually happening. We are trying to forecast relatively rare events and weak, probabilistic causal links
 
 ###* Clearly, h2o makes forecasts even if some variables are missing - I presume it inputs averages, but I could not find it in the documentation yet
 
@@ -918,7 +918,7 @@ pander(pred_2016_nrw)
 
 ###* Also, in some cases you can observe a jump in the predicted probability once a "trouble" event occured, at least in the case of RF and GBM - again a sign of possible overfitting
 
-###* Looking at the ROC curve in h2o, training metric is too high for GBM, DL and RF look more reasonable
+###* Looking at the ROC curve in h2o, training metric is suspiciously high for GBM, DL and RF look more reasonable
 
 ###* I presume that h2o randomly scambles data to create the cross-validation bins. In this case it would be better to take cases sequentially, then the estimation would take different countries than the cross validation, but I only know how to implement that manually.
 
@@ -931,7 +931,9 @@ h2o.shutdown()
 
 ##Closing comments:
 
-### * The best thing in this work was that it gathered a dataset and put it in a usable format - this will make further estimations and discovery possible 
+###* I spent too much time with data munging and too little with modeling - as we learned at class :) 
+
+### * The most valuable part of this work probably was that it gathered a dataset and put it in a usable format - this will make further estimations and discovery possible 
 
 ### * This is a work in progress, and despite the overtime, I could not make it as nice as I would have liked - sorry about the messy outcome...
 
