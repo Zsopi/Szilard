@@ -648,7 +648,7 @@ alldata_merged_new<-alldata_merged_new%>%mutate(polity2=polity2+11)
 alldata_merged_new<-alldata_merged_new%>%mutate(gdp_youthr=ln_gdp_pc*youth_r,polity_youthr=polity2*youth_r)
 
 #saving generated datafile
-
+save(alldata_merged_new,file="alldata_saved.Rda")
 
 #generating machine learning data
 
